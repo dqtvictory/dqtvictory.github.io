@@ -1,0 +1,233 @@
+﻿@page "/sudoku"
+@inject IJSRuntime Js
+@inject ISnackbar Snack
+
+@using trungdam.Internal.Sudoku
+
+@*Project description*@
+<div>
+    <MudText Typo="Typo.h4" GutterBottom="false" Align="Align.Center">Sudoku Master</MudText>
+
+    <MudText Typo="Typo.h6" GutterBottom="true" Align="Align.Center">
+        <i>Simple solver for a simple Sudoku game</i>
+    </MudText>
+
+    <MudText Class="mb-8">
+        This fun little project was thought at first an easy and quick one that I intended to do over a weekend.
+        I coded out the web page below and the Python script and classes within hours on the first day using
+        <MudLink Href="https://www.brython.info" Typo="Typo.body1" Color="Color.Inherit"><b>Brython</b></MudLink>,
+        a tool which helps to program scripts on a web page using Python, which is not normally possible without Javascript.
+    </MudText>
+
+    <MudText Class="mb-8">
+        However, after some coding time, although the codes were correct, it was impossible to efficiently execute the script.
+        There were many limitations with Brython's support for Python's standard libraries and one of them was the multiprocessing module.
+        And even though I tried to run the code on a native Python interpreter, with multiprocessing,
+        Python was still simply too slow to iterate over hundreds of thousands of possibilities for each input state.
+        So I had to throw the whole thing away and started again from scratch.
+    </MudText>
+
+    <MudText Class="mb-8">
+        At this point, I considered either C++ or C#, two of the fastest typed languages out there. After some quick tests and thoughts, I decided to go for <b>C#</b>.
+        After another day or two rewriting and refactoring of what I had written previously in Python, the results were really impressive.
+        Even without any implementation of multi-processing and multi-threading, the code executes within seconds, <i>hundreds of times</i> faster than before!
+    </MudText>
+
+    <MudText Typo="Typo.h6" GutterBottom="true">
+        How to receive blessing from The Scrabble God?
+    </MudText>
+    <MudList Dense="true">
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            The HTML table below represents a classic Scrabble Board with its premium squares (TW, DW, TL, DL)
+        </MudListItem>
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            Click on any square and start inputting the current state of the board that you are playing.
+            Use the arrows on the keyboard to navigate. To remove a tile, use the Delete or Backspace key
+        </MudListItem>
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            To input a blank tile, type the <b>?</b> key followed by a letter.
+            You will notice that a blank doesn't have face value (the small number on the bottom right corner)
+        </MudListItem>
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            Input all available tiles that you have on your rack (maximum 7 tiles).
+            Blanks must be represented by a question mark <b>?</b>
+        </MudListItem>
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            <b>Call The Scrabble God</b> and wait for His magic
+        </MudListItem>
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            If succeed, a solution will be displayed in a message box. In case there are blanks in the solution, lower-cased letters are used to represent them
+        </MudListItem>
+        <MudListItem Icon="@Icons.Material.Filled.Send">
+            To save the current state of the board, you should <b>Generate Current State</b>.
+            The output text should be saved to a text file and can be used later to quickly restore the state
+            using the <b>Load State</b> button
+        </MudListItem>
+    </MudList>
+</div>
+
+<br />
+<br />
+
+@*Project body*@
+<div>
+    <div tabindex="0" @onkeydown="SquareOnKeydown" @ref="focusableDiv" />
+    @if (game == null)
+    {
+        <MudAlert Severity="Severity.Normal">Loading Board...</MudAlert>
+    }
+    else
+    {
+        if (boardUpdated)
+        {
+            conflicts = game.Conflicts;
+            boardUpdated = false;
+        }
+        <MudGrid Justify="Justify.Center">
+            <table class="sudoku-board">
+                <tbody>
+                    @for (int i = 0; i < 9; i++)
+                    {
+                        <tr>
+                            @for (int j = 0; j < 9; j++)
+                            {
+                                var (row, col) = (i, j);
+
+                                <td class="sudoku-board"
+                                    tabindex="@(9 * row + col)"
+                                    style="@SquareStyle((row, col))"
+                                    @onclick="@(() => SquareOnClick((row, col)))">
+                                    @GetSquare((row, col))
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </MudGrid>
+    }
+</div>
+
+@code {
+    ElementReference focusableDiv;
+    static readonly string charKeys = "123456789";
+    static readonly string[] arrowKeys = { "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown" };
+    static readonly string[] delKeys = { "Delete", "Backspace" };
+
+    [CascadingParameter]
+    MudTheme currentTheme { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        game = new Game();
+        Snack.Configuration.SnackbarVariant = MudBlazor.Variant.Filled;
+
+        int[] bloc3 = { 0, 6, 9, 15, 18, 24, 30, 39, 48, 54, 60, 63, 69, 72, 78 };
+        foreach (int i in bloc3)
+        {
+            sameColIdx.Add(i);
+            sameColIdx.Add(i + 1);
+            sameColIdx.Add(i + 2);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            await Js.InvokeVoidAsync("SetFocusToElement", focusableDiv);
+        }
+    }
+
+    /// <summary>
+    /// Get the CSS-string style of a square on the board
+    /// </summary>
+    /// <param name="row">Square's row</param>
+    /// <param name="col">Square's column</param>
+    /// <returns>The CSS-string style of the square</returns>
+    string SquareStyle((int row, int col) pos)
+    {
+        string bg, color, border, weight;
+        int idx = Game.GetIdx(pos);
+
+        weight = "bold";
+
+        if (pos == selectedSquare)
+        {
+            bg = border = "#25DC88";
+            color = currentTheme.Palette.DrawerBackground;
+        }
+        else
+        {
+            if (conflicts.Contains(idx))
+                bg = currentTheme.Palette.Warning;
+            else
+                bg = currentTheme.Palette.DrawerBackground;
+            color = currentTheme.Palette.TextPrimary;
+
+            if (sameColIdx.Contains(idx))
+                border = currentTheme.Palette.Primary;
+            else
+                border = currentTheme.Palette.Secondary;
+        }
+
+        return $"background-color: {bg}; color: {color}; border: 2px solid {border}; font-weight: {weight};";
+    }
+
+    /// <summary>
+    /// Handle click event on a square
+    /// </summary>
+    /// <param name="row">Square's row</param>
+    /// <param name="col">Square's column</param>
+    void SquareOnClick((int row, int col) pos)
+    {
+        if (selectedSquare == pos)
+            UnselectSquare();
+        else
+        {
+            UnselectSquare();
+            SelectSquare(pos);
+        }
+    }
+
+    /// <summary>
+    /// Handle keyboard button event when a square is currently selected
+    /// </summary>
+    void SquareOnKeydown(KeyboardEventArgs e)
+    {
+        var pos = selectedSquare;
+
+        if (selectedSquare == (-1, -1))
+            // Do nothing if no square is being selected
+            return;
+        else if (charKeys.Contains(e.Key))
+            SetSquare(e.Key[0] - '0', pos);
+        else if (arrowKeys.Contains(e.Key))
+        {
+            // Move square selection when an arrow key is pressed
+            if (e.Key == "ArrowLeft" && pos.col > 0)
+                SelectSquare((pos.row, pos.col - 1));
+            else if (e.Key == "ArrowRight" && pos.col < 8)
+                SelectSquare((pos.row, pos.col + 1));
+            else if (e.Key == "ArrowUp" && pos.row > 0)
+                SelectSquare((pos.row - 1, pos.col));
+            else if (e.Key == "ArrowDown" && pos.row < 8)
+                SelectSquare((pos.row + 1, pos.col));
+        }
+        else if (delKeys.Contains(e.Key))
+            // Remove tile currently in selected square when the Del or Backspace key is pressed
+            SetSquare(0, pos);
+    }
+
+    /// <summary>
+    /// Select a square on the board
+    /// </summary>
+    /// <param name="row">Square's row</param>
+    /// <param name="col">Square's col</param>
+    void SelectSquare((int row, int col) pos) => selectedSquare = pos;
+
+    /// <summary>
+    /// Clear square selection on the board
+    /// </summary>
+    void UnselectSquare() => selectedSquare = (-1, -1);
+}

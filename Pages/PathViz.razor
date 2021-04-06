@@ -1,0 +1,215 @@
+﻿@page "/pathviz"
+@inject IJSRuntime Js
+@using trungdam.Internal.PathViz
+
+<MudText Typo="Typo.h4" GutterBottom="false" Align="Align.Center">Path Finding Algorithm Visualization</MudText>
+
+<MudText Typo="Typo.h6" GutterBottom="true" Align="Align.Center">
+    <i>Visualize how a path finding algorithm works</i>
+</MudText>
+
+<MudText Class="mb-8">
+    In this page, I'm going to implement 2 different algorithms to find the shortest path between two nodes: Breadth First Search (BFS) and A-star.
+    Here are quick words on how they work:
+</MudText>
+
+<MudList>
+    <MudListItem Icon="@Icons.Material.Filled.Adjust">
+        <b>Breadth First Search (BFS)</b> algorithm searches for the ending node by layers, where each layer is the next direct unsearched neighbors of the nodes in the previous layer.
+        This algorithm ensures that once the ending node is found, the path being traced back is the shortest possible path.
+        More information on <MudLink Href="https://en.wikipedia.org/wiki/Breadth-first_search">this Wikipedia page</MudLink>
+    </MudListItem>
+    <MudListItem Icon="@Icons.Material.Filled.Adjust">
+        <b>A-Star (A*)</b> algorithm also provides the shortest path solution, and even better, a faster search time than BFS.
+        Instead of searching (nearly) exhaustively, the algorithm calculates at each round an F-score of each node based on a good estimation of the distance with the ending node
+        then decide where to search next based on the calculation.
+        More information on <MudLink Href="https://en.wikipedia.org/wiki/A*_search_algorithm">this Wikipedia page</MudLink>
+    </MudListItem>
+</MudList>
+
+<br />
+<br />
+
+<div tabindex="0" @ref="focusableDiv" />
+
+<MudGrid Justify="Justify.Center">
+    <div @onmouseout="() => TableOnMouseOut()">
+        <table class="path-viz">
+            <tbody>
+                @for (int i = 0; i < Grid.Dim; i++)
+                {
+                    <tr>
+                        @for (int j = 0; j < Grid.Dim; j++)
+                        {
+                            (int row, int col) pos = (i, j);
+
+                            <td class="path-viz"
+                                tabindex="@(Grid.Dim * pos.row + pos.col)"
+                                style="@NodeStyle(pos)"
+                                @onclick="() => NodeOnClick(pos)"
+                                @onmouseover="() => NodeOnMouseOver(pos)" />
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</MudGrid>
+
+<br />
+<br />
+
+<MudAlert Severity="Severity.Error">
+    <b>ATTENTION!</b> Due to the current immaturity of Webassembly and the Blazor technology compared
+    to Javascript, visualization animations cannot be rendered properly on this page. Therefore, I kindly
+    invite you to visit
+    <MudLink Href="http://pro.trungdam.fr/path-finding/path-finding.html" Typo="Typo.body2">this link</MudLink>
+    where I'm hosting the same project using Brython (interpreted Python to Javascript). The link will take
+    you to the page where visualization animations are rendered correctly. I'm sorry for the inconvenience
+</MudAlert>
+
+<br />
+<br />
+
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="1" sm="1" md="2" lg="2" xl="3" />
+    <MudItem xs="10" sm="9" md="8" lg="7" xl="6">
+        <MudPaper Elevation="0"
+                  Outlined="true"
+                  Style="@(defaultStatusStyle + statusStyle)">
+            @statusText
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="1" sm="0" md="2" lg="0" xl="3" />
+</MudGrid>
+
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="10" sm="6" md="2">
+        <MudSelect Label="Select an algorithm"
+                   @bind-Value="algoChoice"
+                   Direction="Direction.Top">
+            @foreach (Algo algo in Enum.GetValues(typeof(Algo)))
+            {
+                <MudSelectItem Value="@algo">@algo</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="10" sm="6" md="2">
+        <MudTooltip Text="I'm feeling lucky">
+            <MudFab Icon="@Icons.Material.Filled.Mood"
+                    Color="Color.Secondary"
+                    OnClick="grid.Randomize" />
+        </MudTooltip>
+    </MudItem>
+    <MudItem xs="10" sm="6" md="2">
+        <MudTooltip Text="Reset">
+            <MudFab Icon="@Icons.Material.Filled.Replay"
+                    OnClick="NewGrid" />
+        </MudTooltip>
+    </MudItem>
+    <MudItem xs="10" sm="6" md="2">
+        <MudTooltip Text="Play">
+            <MudFab Icon="@Icons.Material.Filled.PlayArrow" 
+                    Color="Color.Primary" 
+                    OnClick="Play" />
+        </MudTooltip>
+    </MudItem>
+</MudGrid>
+
+@code {
+    ElementReference focusableDiv;
+    string statusText;
+    const string defaultStatusStyle = "padding: 3px; text-align:center; ";
+    string statusStyle;
+
+    readonly Dictionary<NodeState, string> colors = new Dictionary<NodeState, string>
+    {
+        [NodeState.Open] = "#D1D1D1",
+        [NodeState.Wall] = "#8D6E63",
+        [NodeState.Start] = "seagreen",
+        [NodeState.End] = "orangered",
+        [NodeState.Queue] = "orange",
+        [NodeState.Searched] = "khaki",
+        [NodeState.Path] = "slateblue"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            await Js.InvokeVoidAsync("SetFocusToElement", focusableDiv);
+    }
+
+    string NodeStyle((int row, int col) pos)
+    {
+        string color = colors[grid.GetState(pos)];
+        return $"background-color: {color};";
+    }
+
+    void TableOnMouseOut()
+    {
+        if (!grid.HasStartNode)
+        {
+            statusText = "Make a starting node";
+            statusStyle = $"color: white; background-color: {colors[NodeState.Start]};";
+        }
+        else if (!grid.HasEndNode)
+        {
+            statusText = "Make an ending node";
+            statusStyle = $"color: white; background-color: {colors[NodeState.End]};";
+        }
+        else
+        {
+            statusText = "Hit Play now!";
+            statusStyle = "color: white; background-color: #555555;";
+        }
+    }
+
+    void NodeOnClick((int row, int col) pos)
+    {
+        var state = grid.GetState(pos);
+        if (state == NodeState.Wall || state == NodeState.Start || state == NodeState.End)
+            grid.MakeOpen(pos);
+        else if (!grid.HasStartNode)
+            grid.MakeStart(pos);
+        else if (!grid.HasEndNode)
+            grid.MakeEnd(pos);
+        else
+            grid.MakeWall(pos);
+        NodeOnMouseOver(pos);
+    }
+
+    void NodeOnMouseOver((int row, int col) pos)
+    {
+        var state = grid.GetState(pos);
+        if (state == NodeState.Wall)
+        {
+            statusText = "Click to remove wall node";
+            statusStyle = $"color: inherit; background-color: {colors[NodeState.Open]};";
+        }
+        else if (state == NodeState.Start)
+        {
+            statusText = "Click to remove starting node";
+            statusStyle = $"color: inherit; background-color: {colors[NodeState.Open]};";
+        }
+        else if (state == NodeState.End)
+        {
+            statusText = "Click to remove ending node";
+            statusStyle = $"color: inherit; background-color: {colors[NodeState.Open]};";
+        }
+        else if (!grid.HasStartNode)
+        {
+            statusText = "Click to make starting node";
+            statusStyle = $"color: white; background-color: {colors[NodeState.Start]};";
+        }
+        else if (!grid.HasEndNode)
+        {
+            statusText = "Click to make ending node";
+            statusStyle = $"color: white; background-color: {colors[NodeState.End]};";
+        }
+        else
+        {
+            statusText = "Click to make a wall node";
+            statusStyle = $"color: white; background-color: {colors[NodeState.Wall]};";
+        }
+    }
+}

@@ -1,0 +1,91 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="currentTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => drawerOpen = !drawerOpen)" />
+        <MudText Typo="@Typo.h5">Projects Showcase</MudText>
+        <MudAppBarSpacer />
+
+        <MudTooltip Text="Email me">
+            <MudIconButton Icon="@Icons.Material.Filled.Email" Color="Color.Inherit" Link="mailto:dqt@trungdam.fr" Target="_blank" />
+        </MudTooltip>
+
+        <MudTooltip Text="My GitHub page">
+            <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit" Link="https://github.com/dqtvictory" Target="_blank" />
+        </MudTooltip>
+
+        <MudTooltip Text="Toggle dark mode">
+            <MudToggleIconButton @bind-Toggled="@DarkMode" Icon="@Icons.Material.Filled.Bedtime" Color="Color.Inherit"
+                                 ToggledIcon="@Icons.Material.Filled.WbSunny" ToggledColor="Color.Inherit" />
+        </MudTooltip>
+
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="drawerOpen" Elevation="2">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h5">trungdam.fr</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-16">
+            <CascadingValue Value="currentTheme">
+                @Body
+            </CascadingValue>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool drawerOpen = true;
+    MudTheme currentTheme;
+    MudTheme lightTheme = new MudTheme()
+    {
+        Palette = new Palette()
+        {
+            Black = "#272c34"
+        }
+    };
+    MudTheme darkTheme = new MudTheme()
+    {
+        Palette = new Palette()
+        {
+            Primary = "#897FE8",
+            Black = "#313131",
+            Background = "#191919",
+            BackgroundGrey = "#313131",
+            Surface = "#373740",
+            DrawerBackground = "#313131",
+            DrawerText = "rgba(255,255,255, 0.50)",
+            DrawerIcon = "rgba(255,255,255, 0.50)",
+            AppbarBackground = "#27272f",
+            AppbarText = "rgba(255,255,255, 0.70)",
+            TextPrimary = "rgba(255,255,255, 0.70)",
+            TextSecondary = "rgba(255,255,255, 0.50)",
+            ActionDefault = "#adadb1",
+            ActionDisabled = "rgba(255,255,255, 0.26)",
+            ActionDisabledBackground = "rgba(255,255,255, 0.12)"
+        }
+    };
+    bool darkMode;
+    bool DarkMode { get => darkMode; set {
+            if (currentTheme == lightTheme)
+                currentTheme = darkTheme;
+            else
+                currentTheme = lightTheme;
+            darkMode = currentTheme == darkTheme;
+        }
+    }
+
+    void DrawerToggle() => drawerOpen = !drawerOpen;
+
+    protected override void OnInitialized()
+    {
+        currentTheme = lightTheme;
+    }
+}
