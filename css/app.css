@@ -1,0 +1,37 @@
+﻿.scrabble-board table {
+    width: 100%;
+    padding-top: 100%
+}
+
+.scrabble-board td {
+    border-radius: 5px;
+    width: 50px;
+    height: 50px;
+    background-size: contain;
+}
+
+.sudoku-board table {
+    width: 100%;
+    padding-top: 100%
+}
+
+.sudoku-board td {
+    border-radius: 5px;
+    width: 70px;
+    height: 70px;
+    text-align: center;
+    font-size: 40px;
+    vertical-align: central;
+}
+
+.path-viz table {
+    width: 100%;
+    height:auto;
+}
+
+.path-viz td {
+    border: 0;
+    border-radius: 5px;
+    height: 25px;
+    width: 25px;
+}
