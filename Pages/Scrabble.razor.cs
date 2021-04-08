@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Net.Http;
 using trungdam.Internal.Scrabble;
 
 namespace trungdam.Pages
@@ -9,7 +11,7 @@ namespace trungdam.Pages
         (int row, int col) selectedSquare = (-1, -1);
         bool enteringBlank = false;
 
-        const string godUrl = "http://52.47.142.152:4001/scrabble";
+        const string godUrl = "https://api.trungdam.fr:4001/";
         bool callingGod = false;
         List<(int, int)> moveSquares = new List<(int, int)>();
 
@@ -139,22 +141,27 @@ namespace trungdam.Pages
             }
 
             UnselectSquare();
-            string message = "?message=";
+            string message;
 
             if (board.IsEmpty)
-                message += $"start {rack}";
+                message = $"start/{rack}";
             else
             {
                 GenerateState();
-                message += $"help {rack} {inputState}";
+                message = $"/help/{rack}/{inputState}";
             }
 
             Snack.Add("Asking for Scrabble God's blessing...", MudBlazor.Severity.Info);
             callingGod = true;
             try
             {
-                string move = await Http.GetStringAsync(godUrl + message);
-                InterpretMove(move);
+                var req = new HttpRequestMessage(HttpMethod.Get, godUrl + message);
+                using var resp = await new HttpClient().SendAsync(req);
+                resp.Headers.Add("Access-Control-Allow-Origin", "*");
+                var move = await resp.Content.ReadAsStringAsync();
+                /*string move = await Http.GetStringAsync(godUrl + message);*/
+                Console.WriteLine(move);
+                //InterpretMove(move);
             }
             catch
             {
