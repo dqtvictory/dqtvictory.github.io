@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Net.Http;
 using trungdam.Internal.Scrabble;
 
 namespace trungdam.Pages
@@ -148,20 +147,16 @@ namespace trungdam.Pages
             else
             {
                 GenerateState();
-                message = $"/help/{rack}/{inputState}";
+                message = $"help/{rack}/{inputState}";
             }
 
             Snack.Add("Asking for Scrabble God's blessing...", MudBlazor.Severity.Info);
             callingGod = true;
             try
             {
-                var req = new HttpRequestMessage(HttpMethod.Get, godUrl + message);
-                using var resp = await new HttpClient().SendAsync(req);
-                resp.Headers.Add("Access-Control-Allow-Origin", "*");
-                var move = await resp.Content.ReadAsStringAsync();
-                /*string move = await Http.GetStringAsync(godUrl + message);*/
-                Console.WriteLine(move);
-                //InterpretMove(move);
+                string move = await Http.GetStringAsync(godUrl + message);
+                move = move.Substring(1, move.Length - 2);
+                InterpretMove(move);
             }
             catch
             {
@@ -176,7 +171,7 @@ namespace trungdam.Pages
             if (moveSquares.Count > 0)
                 moveSquares = new List<(int, int)>();
 
-            string[] parts = move.Split('\n');
+            string[] parts = move.Split("\\n", StringSplitOptions.RemoveEmptyEntries);
             int score = int.Parse(parts[0]);
 
             if (score == 0)
